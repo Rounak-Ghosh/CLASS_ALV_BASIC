@@ -1,0 +1,132 @@
+*&---------------------------------------------------------------------*
+*& Report ZCL_ALV
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zcl_alv.
+
+
+TYPES: BEGIN OF ty_kna1,
+         kunnr TYPE kna1-kunnr,
+         name1 TYPE kna1-name1,
+         land1 TYPE kna1-land1,
+       END OF ty_kna1.
+
+DATA: v_kunnr  TYPE kna1-kunnr,
+      obj_cont TYPE REF TO cl_gui_custom_container,               "Object for custom container
+      obj_grid TYPE REF TO cl_gui_alv_grid,                       "Object for ALV grid
+      it_kna1  TYPE STANDARD TABLE OF ty_kna1,                       "Object for ALV grid
+      wa_fcat TYPE lvc_s_fcat,
+      it_fcat TYPE lvc_t_fcat.
+
+
+SELECT-OPTIONS s_kunnr FOR v_kunnr DEFAULT '700030' TO '700164'.
+
+
+
+
+START-OF-SELECTION.
+  CALL SCREEN 100.    "On execute(F8) this custom screen is called
+  "Custom screen contains custom control upon which ALV will be mounted
+
+
+
+
+
+MODULE status_0100 OUTPUT.
+  IF obj_cont IS NOT BOUND.
+    SET PF-STATUS 'STATUS0100'.
+
+    CREATE OBJECT obj_cont            "Linking custom control with custom container - obj_cont
+      EXPORTING
+        container_name              = 'CUSTCTRL1'
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5
+        OTHERS                      = 6.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+    CREATE OBJECT obj_grid            "Linking ALV grid to the container object
+      EXPORTING
+        i_parent          = obj_cont
+      EXCEPTIONS
+        error_cntl_create = 1
+        error_cntl_init   = 2
+        error_cntl_link   = 3
+        error_dp_create   = 4
+        OTHERS            = 5.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+    PERFORM get_data_kna1.      "populating table for displaying in 1st alv
+    IF it_kna1 IS NOT INITIAL.
+      PERFORM display_kna1.
+    ENDIF.
+
+
+* SET TITLEBAR 'xxx'.
+  ENDIF.
+ENDMODULE.
+
+
+MODULE user_command_0100 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK'.
+      LEAVE PROGRAM.
+  ENDCASE.
+ENDMODULE.
+
+
+FORM get_data_kna1 .
+  SELECT *
+    FROM kna1
+    INTO CORRESPONDING FIELDS OF TABLE it_kna1
+    WHERE kunnr IN s_kunnr.
+ENDFORM.
+
+
+FORM display_kna1 .
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname = 'KUNNR'.
+  wa_fcat-col_pos  = 1.
+  wa_fcat-coltext  = 'Cust No'.
+  wa_fcat-outputlen = 10.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+  wa_fcat-fieldname = 'NAME1'.
+  wa_fcat-col_pos  = 2.
+  wa_fcat-coltext  = 'Cust Name'.
+  wa_fcat-outputlen = 50.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+  wa_fcat-fieldname = 'LAND1'.
+  wa_fcat-col_pos  = 3.
+  wa_fcat-coltext  = 'Country'.
+  wa_fcat-outputlen = 10.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  CALL METHOD obj_grid->set_table_for_first_display
+    CHANGING
+      it_outtab                     = it_kna1
+      it_fieldcatalog               = it_fcat
+    EXCEPTIONS
+      invalid_parameter_combination = 1
+      program_error                 = 2
+      too_many_lines                = 3
+      OTHERS                        = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.
